@@ -1,13 +1,15 @@
 class Api::TransactionsController < ApiController
   before_action :authorize
 
-  def create
-    transaction = CreateTransaction.new(transaction_params, @merchant).call
+  rescue_from AASM::InvalidTransition, with: :render_transition_error
 
-    if transaction.valid?
-      render json: transaction.to_json
+  def create
+    result = CreateTransaction.new(transaction_params, @merchant).call
+
+    if result.errors?
+      render json: { errors: result.errors }, status: :unprocessable_entity
     else
-      render json: transaction.errors, status: :unprocessable_entity
+      render json: result.transaction.to_json
     end
   end
 
@@ -18,6 +20,10 @@ class Api::TransactionsController < ApiController
   end
 
   def transaction_params
-    params.require(:transaction).permit(:type, :amount, :uuid, :customer_phone, :customer_email, :notification_url)
+    params.require(:transaction).permit(:type, :amount, :uuid, :customer_phone, :customer_email, :notification_url, :parent_transaction_id)
+  end
+
+  def render_transition_error(error)
+    render json: { errors: [error.to_s] }, status: :unprocessable_entity
   end
 end

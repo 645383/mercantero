@@ -5,19 +5,9 @@ class CreateTransaction
   end
 
   def call
-    transaction = create
-    post_process(transaction)
-    transaction
-  end
-
-  private
-
-  def create
-    type = "Transaction::#{@params.delete(:type).camelize}".constantize
-    type.create(@params.merge(merchant_id: @merchant.id))
-  end
-
-  def post_process(transaction)
-    ProcessTransaction.new(transaction).call
+    processor_name = "TransactionProcessor::#{@params.delete(:type).camelize}"
+    processor = processor_name.constantize.new(@params, @merchant)
+    processor.call
+    processor
   end
 end

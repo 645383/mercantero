@@ -8,11 +8,14 @@ RSpec.describe "/api/transactions", type: :request do
       uuid: 'uuid',
       customer_email: 'email@example.com',
       customer_phone: '+380960610359',
-      notification_url: 'https://notificaton.example.com'
+      notification_url: notification_url,
+      parent_transaction_id: parent_transaction_id
     }
   }
-  let(:transaction_type) {'authorize'}
+  let(:transaction_type) { 'authorize' }
   let(:merchant) { create(:merchant) }
+  let(:parent_transaction_id) { nil }
+  let(:notification_url) { nil }
 
   let(:auth_header) {
     { 'Authorization' => "Bearer #{JWT.encode({ merchant_id: merchant.id }, Rails.configuration.x.jwt_secret)}" }
@@ -43,6 +46,8 @@ RSpec.describe "/api/transactions", type: :request do
     end
 
     context "with valid parameters" do
+      let(:notification_url) { 'https://notificaton.example.com' }
+
       it "creates a new Transaction" do
         expect {
           post api_transactions_url, params: { transaction: valid_attributes }, headers: auth_header
@@ -64,18 +69,44 @@ RSpec.describe "/api/transactions", type: :request do
       end
 
       context 'when creating Capture transaction' do
-        let(:transaction_type) {'capture'}
+        let(:parent_transaction_id) { create(:authorize_transaction, amount: parent_transaction_amount, status: 'approved').id }
+        let(:transaction_type) { 'capture' }
+        let(:parent_transaction_amount) { 99.99 }
 
-        it 'creates transaction with status approve' do
+        it 'creates transaction with status approved' do
           post api_transactions_url, params: { transaction: valid_attributes }, headers: auth_header
 
           expect(response_body['status']).to eq('approved')
         end
 
-        it 'does not enqueue a job' do
-          expect {
+        context 'when Authorize transaction is pending' do
+          let(:parent_transaction_id) { create(:authorize_transaction, amount: parent_transaction_amount, status: 'pending').id }
+
+          it 'returns error' do
             post api_transactions_url, params: { transaction: valid_attributes }, headers: auth_header
-          }.not_to have_enqueued_job(AuthorizeTransactionJob)
+
+            expect(response_body['errors']).to eq([{ "parent_transaction" => ["Parent transaction should have status approved or captured"] }])
+          end
+        end
+
+        context 'when Authorize transaction is captured' do
+          let(:parent_transaction_id) { create(:authorize_transaction, amount: parent_transaction_amount, status: 'captured').id }
+
+          it 'creates transaction with status approved' do
+            post api_transactions_url, params: { transaction: valid_attributes }, headers: auth_header
+
+            expect(response_body['status']).to eq('approved')
+          end
+        end
+
+        context 'when transaction amount is more than authorized' do
+          let(:parent_transaction_amount) { 9.99 }
+
+          it 'returns error' do
+            post api_transactions_url, params: { transaction: valid_attributes }, headers: auth_header
+
+            expect(response_body['errors']).to eq([{ 'base' => ["Captured amount is more than authorized amount"] }])
+          end
         end
       end
     end

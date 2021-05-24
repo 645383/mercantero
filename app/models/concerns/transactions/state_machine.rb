@@ -17,7 +17,7 @@ module Transactions
           end
 
           event :capture do
-            transitions from: [:approved], to: :captured
+            transitions from: [:approved, :captured], to: :captured
           end
 
           event :void do
@@ -37,8 +37,17 @@ module Transactions
         include AASM
 
         aasm column: 'status' do
+          state :pending, initial: true
           state :approved
           state :error
+
+          event :approve do
+            transitions from: [:pending], to: :approved
+          end
+
+          event :decline do
+            transitions from: [:pending], to: :error
+          end
         end
       end
     end
