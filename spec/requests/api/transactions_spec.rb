@@ -3,6 +3,7 @@ require 'rails_helper'
 RSpec.describe "/api/transactions", type: :request do
   let(:valid_attributes) {
     {
+      type: 'authorize',
       amount: 99.99,
       uuid: 'uuid',
       customer_email: 'email@example.com',
@@ -18,7 +19,7 @@ RSpec.describe "/api/transactions", type: :request do
     context "with valid parameters" do
       it "creates a new Transaction" do
         expect {
-          post transactions_url, params: { transaction: valid_attributes }
+          post api_transactions_url, params: { transaction: valid_attributes }
         }.to change(Transaction, :count).by(1)
       end
     end

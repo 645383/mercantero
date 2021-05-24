@@ -30,7 +30,6 @@ class MerchantsController < ApplicationController
   end
 
   def update
-
     respond_to do |format|
       if @merchant.update(merchant_params)
         format.html { redirect_to @merchant, notice: "Merchant was successfully updated." }
