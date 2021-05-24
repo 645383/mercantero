@@ -4,6 +4,7 @@ Rails.application.routes.draw do
   namespace :api do
     defaults format: :json do
       post 'transactions', to: 'transactions#create'
+      post 'auth/login', to: 'auth#login'
     end
   end
 end
