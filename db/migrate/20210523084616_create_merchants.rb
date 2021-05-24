@@ -5,7 +5,6 @@ class CreateMerchants < ActiveRecord::Migration[6.1]
       t.text :description
       t.string :email
       t.string :status
-      t.belongs_to :role
 
       t.timestamps
     end
