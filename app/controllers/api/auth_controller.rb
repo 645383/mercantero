@@ -1,5 +1,5 @@
 class Api::AuthController < ApiController
-  skip_before_action :authorize, only: %i[login]
+  skip_before_action :authenticate, only: %i[login]
 
   def login
     @merchant = Merchant.find_by(email: merchant_params[:email])

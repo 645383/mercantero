@@ -22,10 +22,22 @@ RSpec.describe "/api/transactions", type: :request do
 
   describe "POST /create" do
     context 'when merchant is unauthorized' do
-      it "returns unauthorized error" do
-        post api_transactions_url, params: { transaction: valid_attributes }
+      context 'when auth token is not provided' do
+        it "returns unauthorized error" do
+          post api_transactions_url, params: { transaction: valid_attributes }
 
-        expect(response).to have_http_status(:unauthorized)
+          expect(response).to have_http_status(:unauthorized)
+        end
+      end
+
+      context "when merchant is inactive" do
+        let(:merchant) { create(:merchant, status: 'inactive') }
+
+        it "returns unauthorized error" do
+          post api_transactions_url, params: { transaction: valid_attributes }, headers: auth_header
+
+          expect(response).to have_http_status(:unauthorized)
+        end
       end
     end
 
@@ -34,7 +46,10 @@ RSpec.describe "/api/transactions", type: :request do
         expect {
           post api_transactions_url, params: { transaction: valid_attributes }, headers: auth_header
         }.to change(Transaction, :count).by(1)
-        expect(response_body['status']).not_to be_nil
+      end
+
+      context 'when creating Authorize transaction' do
+        post api_transactions_url, params: { transaction: valid_attributes }, headers: auth_header
       end
     end
   end
