@@ -6,6 +6,6 @@ class CreateTransaction
 
   def call
     type = "Transaction::#{@params.delete(:type).camelize}".constantize
-    type.create(@params)
+    type.create(@params.merge(merchant_id: @merchant.id))
   end
 end

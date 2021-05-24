@@ -1,10 +1,11 @@
 class Api::TransactionsController < ApiController
   def create
-    transaction = CreateTransaction.new(transaction_params).call
-    if transaction.errors?
-      render transaction.errors, status: :unprocessable_entity
+    transaction = CreateTransaction.new(transaction_params, @merchant).call
+
+    if transaction.valid?
+      render json: transaction.to_json
     else
-      render transaction
+      render transaction.errors, status: :unprocessable_entity
     end
   end
 

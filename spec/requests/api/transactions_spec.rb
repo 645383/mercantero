@@ -11,16 +11,30 @@ RSpec.describe "/api/transactions", type: :request do
       notification_url: 'https://notificaton.example.com'
     }
   }
+  let(:merchant) { create(:merchant) }
+
+  let(:auth_header) {
+    { 'Authorization' => "Bearer #{JWT.encode({ merchant_id: merchant.id }, Rails.configuration.x.jwt_secret)}" }
+  }
 
   let(:invalid_attributes) {
   }
 
   describe "POST /create" do
+    context 'when merchant is unauthorized' do
+      it "returns unauthorized error" do
+        post api_transactions_url, params: { transaction: valid_attributes }
+
+        expect(response).to have_http_status(:unauthorized)
+      end
+    end
+
     context "with valid parameters" do
       it "creates a new Transaction" do
         expect {
-          post api_transactions_url, params: { transaction: valid_attributes }
+          post api_transactions_url, params: { transaction: valid_attributes }, headers: auth_header
         }.to change(Transaction, :count).by(1)
+        expect(response_body['status']).not_to be_nil
       end
     end
   end
