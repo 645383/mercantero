@@ -7,7 +7,7 @@ class Api::TransactionsController < ApiController
     if transaction.valid?
       render json: transaction.to_json
     else
-      render transaction.errors, status: :unprocessable_entity
+      render json: transaction.errors, status: :unprocessable_entity
     end
   end
 

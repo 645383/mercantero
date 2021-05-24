@@ -3,7 +3,7 @@ require 'rails_helper'
 RSpec.describe "/api/transactions", type: :request do
   let(:valid_attributes) {
     {
-      type: 'authorize',
+      type: transaction_type,
       amount: 99.99,
       uuid: 'uuid',
       customer_email: 'email@example.com',
@@ -11,6 +11,7 @@ RSpec.describe "/api/transactions", type: :request do
       notification_url: 'https://notificaton.example.com'
     }
   }
+  let(:transaction_type) {'authorize'}
   let(:merchant) { create(:merchant) }
 
   let(:auth_header) {
@@ -49,7 +50,33 @@ RSpec.describe "/api/transactions", type: :request do
       end
 
       context 'when creating Authorize transaction' do
-        post api_transactions_url, params: { transaction: valid_attributes }, headers: auth_header
+        it 'creates transaction with status pending' do
+          post api_transactions_url, params: { transaction: valid_attributes }, headers: auth_header
+
+          expect(response_body['status']).to eq('pending')
+        end
+
+        it 'enqueues a job' do
+          expect {
+            post api_transactions_url, params: { transaction: valid_attributes }, headers: auth_header
+          }.to have_enqueued_job(AuthorizeTransactionJob)
+        end
+      end
+
+      context 'when creating Capture transaction' do
+        let(:transaction_type) {'capture'}
+
+        it 'creates transaction with status approve' do
+          post api_transactions_url, params: { transaction: valid_attributes }, headers: auth_header
+
+          expect(response_body['status']).to eq('approved')
+        end
+
+        it 'does not enqueue a job' do
+          expect {
+            post api_transactions_url, params: { transaction: valid_attributes }, headers: auth_header
+          }.not_to have_enqueued_job(AuthorizeTransactionJob)
+        end
       end
     end
   end

@@ -8,3 +8,4 @@
 
 merchant = FactoryBot.create(:merchant)
 FactoryBot.create(:authorize_transaction, merchant: merchant)
+FactoryBot.create(:capture_transaction, merchant: merchant)

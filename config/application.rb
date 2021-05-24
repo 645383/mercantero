@@ -19,5 +19,6 @@ module Merchantero
     # config.time_zone = "Central Time (US & Canada)"
     # config.eager_load_paths << Rails.root.join
     config.x.jwt_secret = 'random'
+    config.active_job.queue_adapter = :sidekiq
   end
 end
