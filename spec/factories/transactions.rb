@@ -13,6 +13,7 @@ FactoryBot.define do
   end
 
   factory :capture_transaction, parent: :transaction, class: 'Transaction::Capture' do
+    parent_transaction { create(:authorize_transaction, status: 'approved') }
     status { 'approved' }
   end
 end

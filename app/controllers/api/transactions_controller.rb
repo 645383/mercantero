@@ -1,7 +1,7 @@
 class Api::TransactionsController < ApiController
   before_action :authorize
 
-  rescue_from AASM::InvalidTransition, with: :render_transition_error
+  # rescue_from AASM::InvalidTransition, with: :render_transition_error
 
   def create
     result = CreateTransaction.new(transaction_params, @merchant).call

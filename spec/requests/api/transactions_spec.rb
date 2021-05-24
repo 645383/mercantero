@@ -109,6 +109,49 @@ RSpec.describe "/api/transactions", type: :request do
           end
         end
       end
+
+      context 'when creating Refund transaction' do
+        let(:parent_transaction_id) { create(:capture_transaction, amount: parent_transaction_amount, status: status).id }
+        let(:transaction_type) { 'refund' }
+        let(:parent_transaction_amount) { 99.99 }
+        let(:status) {'approved'}
+
+        it 'creates transaction with status approved' do
+          post api_transactions_url, params: { transaction: valid_attributes }, headers: auth_header
+
+          expect(response_body['status']).to eq('approved')
+        end
+
+        context 'when Capture transaction has status error' do
+          let(:status) {'error'}
+
+          it 'returns error' do
+            post api_transactions_url, params: { transaction: valid_attributes }, headers: auth_header
+
+            expect(response_body['errors']).to eq([{ "parent_transaction" => ["Parent transaction should have status approved or refunded"] }])
+          end
+        end
+
+        context 'when Capture transaction is refunded' do
+          let(:status) {'refunded'}
+
+          it 'creates transaction with status approved' do
+            post api_transactions_url, params: { transaction: valid_attributes }, headers: auth_header
+
+            expect(response_body['status']).to eq('approved')
+          end
+        end
+
+        context 'when refund transaction amount is more than captured amount' do
+          let(:parent_transaction_amount) { 9.99 }
+
+          it 'returns error' do
+            post api_transactions_url, params: { transaction: valid_attributes }, headers: auth_header
+
+            expect(response_body['errors']).to eq([{ 'base' => ["Refunded amount is more than captured amount"] }])
+          end
+        end
+      end
     end
   end
 end

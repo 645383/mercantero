@@ -39,6 +39,32 @@ module Transactions
         aasm column: 'status' do
           state :pending, initial: true
           state :approved
+          state :refunded
+          state :error
+
+          event :approve do
+            transitions from: [:pending], to: :approved
+          end
+
+          event :decline do
+            transitions from: [:pending], to: :error
+          end
+
+          event :refund do
+            transitions from: [:approved, :refunded], to: :refunded
+          end
+        end
+      end
+    end
+
+    module Refund
+      extend ActiveSupport::Concern
+      included do
+        include AASM
+
+        aasm column: 'status' do
+          state :pending, initial: true
+          state :approved
           state :error
 
           event :approve do
