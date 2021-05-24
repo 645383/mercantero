@@ -21,7 +21,7 @@ module Transactions
           end
 
           event :void do
-            transitions from: [:pending], to: :voided
+            transitions from: [:approved], to: :voided
           end
 
           event :decline do
@@ -58,6 +58,27 @@ module Transactions
     end
 
     module Refund
+      extend ActiveSupport::Concern
+      included do
+        include AASM
+
+        aasm column: 'status' do
+          state :pending, initial: true
+          state :approved
+          state :error
+
+          event :approve do
+            transitions from: [:pending], to: :approved
+          end
+
+          event :decline do
+            transitions from: [:pending], to: :error
+          end
+        end
+      end
+    end
+
+    module Void
       extend ActiveSupport::Concern
       included do
         include AASM

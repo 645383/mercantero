@@ -9,7 +9,7 @@ class Api::TransactionsController < ApiController
     if result.errors?
       render json: { errors: result.errors }, status: :unprocessable_entity
     else
-      render json: result.transaction.to_json
+      render json: result.transaction.to_json, status: :created
     end
   end
 

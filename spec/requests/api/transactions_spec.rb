@@ -152,6 +152,28 @@ RSpec.describe "/api/transactions", type: :request do
           end
         end
       end
+
+      context 'when creating Void transaction' do
+        let(:parent_transaction_id) { create(:authorize_transaction, status: status).id }
+        let(:transaction_type) { 'void' }
+        let(:status) {'approved'}
+
+        it 'creates transaction with status approved' do
+          post api_transactions_url, params: { transaction: valid_attributes }, headers: auth_header
+
+          expect(response).to have_http_status(:created)
+        end
+
+        context 'when Authorize transaction has status error' do
+          let(:status) {'error'}
+
+          it 'returns error' do
+            post api_transactions_url, params: { transaction: valid_attributes }, headers: auth_header
+
+            expect(response_body['errors']).to eq([{ "parent_transaction" => ["Parent transaction should have status approved"] }])
+          end
+        end
+      end
     end
   end
 end
