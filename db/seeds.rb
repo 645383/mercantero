@@ -7,5 +7,5 @@
 #   Character.create(name: 'Luke', movie: movies.first)
 
 merchant = FactoryBot.create(:merchant)
-FactoryBot.create(:authorize_transaction, merchant: merchant)
-FactoryBot.create(:capture_transaction, merchant: merchant)
+auth_transaction = FactoryBot.create(:authorize_transaction, merchant: merchant)
+FactoryBot.create(:capture_transaction, parent_transaction: auth_transaction, merchant: merchant)

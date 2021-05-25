@@ -12,12 +12,16 @@ class Transaction::Capture < Transaction
   private
 
   def parent_referable
+    # Can refer only to an approved or captured Authorize transaction
     return if parent_transaction.approved? || parent_transaction.captured?
 
     errors.add(:parent_transaction, 'Parent transaction should have status approved or captured')
   end
 
   def related_captures_sum
+    # Should allow more than one Capture transaction to be submitted
+    # as long as the total captured amount is less than or equal to the
+    # authorized amount
     parent_transaction.transactions
       .where(type: 'Transaction::Capture', status: 'approved').sum(:amount)
   end

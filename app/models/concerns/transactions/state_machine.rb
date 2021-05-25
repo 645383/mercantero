@@ -6,6 +6,7 @@ module Transactions
         include AASM
 
         aasm column: 'status' do
+          # The transaction should be created with status pending
           state :pending, initial: true
           state :approved
           state :captured

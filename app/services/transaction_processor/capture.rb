@@ -5,12 +5,16 @@ class TransactionProcessor::Capture < TransactionProcessor::Base
     @transaction = Transaction::Capture.create(params)
     validate
 
+    # The status of the transaction must be error in case of validation
+    # error, otherwise approved
     if errors?
       transaction.decline
     else
       transaction.approve
       transaction.parent_transaction.capture
+      transaction.parent_transaction.save
     end
+    transaction.save
   end
 
   private

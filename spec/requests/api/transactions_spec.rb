@@ -4,7 +4,7 @@ RSpec.describe "/api/transactions", type: :request do
   let(:valid_attributes) {
     {
       type: transaction_type,
-      amount: 99.99,
+      amount: amount,
       uuid: 'uuid',
       customer_email: 'email@example.com',
       customer_phone: '+380960610359',
@@ -12,10 +12,15 @@ RSpec.describe "/api/transactions", type: :request do
       parent_transaction_id: parent_transaction_id
     }
   }
+  let(:amount) { 99.99 }
   let(:transaction_type) { 'authorize' }
   let(:merchant) { create(:merchant) }
-  let(:parent_transaction_id) { nil }
   let(:notification_url) { nil }
+  let(:parent_transaction) { create(parent_transaction_type, amount: parent_transaction_amount, status: parent_transaction_status) }
+  let(:parent_transaction_type) { :authorize_transaction }
+  let(:parent_transaction_id) { parent_transaction.id }
+  let(:parent_transaction_amount) { 99.99 }
+  let(:parent_transaction_status) { 'approved' }
 
   let(:auth_header) {
     { 'Authorization' => "Bearer #{JWT.encode({ merchant_id: merchant.id }, Rails.configuration.x.jwt_secret)}" }
@@ -45,131 +50,156 @@ RSpec.describe "/api/transactions", type: :request do
       end
     end
 
-    context "with valid parameters" do
+    context 'when creating Authorize transaction' do
+      let(:parent_transaction_id) { nil }
       let(:notification_url) { 'https://notificaton.example.com' }
 
-      it "creates a new Transaction" do
+      it 'creates transaction with status pending' do
+        post api_transactions_url, params: { transaction: valid_attributes }, headers: auth_header
+
+        expect(response_body['status']).to eq('pending')
+      end
+
+      it 'enqueues a job' do
         expect {
           post api_transactions_url, params: { transaction: valid_attributes }, headers: auth_header
-        }.to change(Transaction, :count).by(1)
+        }.to have_enqueued_job(AuthorizeTransactionJob)
+      end
+    end
+
+    context 'when creating Capture transaction' do
+      let(:transaction_type) { 'capture' }
+
+      it "changes state of parent transaction to captured" do
+        expect {
+          post api_transactions_url, params: { transaction: valid_attributes }, headers: auth_header
+        }.to change { parent_transaction.reload.status }.from('approved').to('captured')
       end
 
-      context 'when creating Authorize transaction' do
-        it 'creates transaction with status pending' do
+      context 'when parent Authorize transaction' do
+        before do
           post api_transactions_url, params: { transaction: valid_attributes }, headers: auth_header
-
-          expect(response_body['status']).to eq('pending')
         end
 
-        it 'enqueues a job' do
-          expect {
-            post api_transactions_url, params: { transaction: valid_attributes }, headers: auth_header
-          }.to have_enqueued_job(AuthorizeTransactionJob)
-        end
-      end
+        context 'is approved' do
+          let(:parent_transaction_status) { 'approved' }
 
-      context 'when creating Capture transaction' do
-        let(:parent_transaction_id) { create(:authorize_transaction, amount: parent_transaction_amount, status: 'approved').id }
-        let(:transaction_type) { 'capture' }
-        let(:parent_transaction_amount) { 99.99 }
-
-        it 'creates transaction with status approved' do
-          post api_transactions_url, params: { transaction: valid_attributes }, headers: auth_header
-
-          expect(response_body['status']).to eq('approved')
+          it 'creates a transaction with status approved' do
+            expect(response).to have_http_status(:created)
+            expect(response_body['status']).to eq('approved')
+          end
         end
 
-        context 'when Authorize transaction is pending' do
-          let(:parent_transaction_id) { create(:authorize_transaction, amount: parent_transaction_amount, status: 'pending').id }
+        context 'is captured' do
+          let(:parent_transaction_status) { 'captured' }
+
+          it 'creates transaction with status approved' do
+            expect(response).to have_http_status(:created)
+            expect(response_body['status']).to eq('approved')
+          end
+        end
+
+        context 'is pending' do
+          let(:parent_transaction_status) { 'pending' }
 
           it 'returns error' do
-            post api_transactions_url, params: { transaction: valid_attributes }, headers: auth_header
-
             expect(response_body['errors']).to eq([{ "parent_transaction" => ["Parent transaction should have status approved or captured"] }])
           end
         end
 
-        context 'when Authorize transaction is captured' do
-          let(:parent_transaction_id) { create(:authorize_transaction, amount: parent_transaction_amount, status: 'captured').id }
+        context 'has status error' do
+          let(:parent_transaction_status) { 'error' }
 
-          it 'creates transaction with status approved' do
-            post api_transactions_url, params: { transaction: valid_attributes }, headers: auth_header
-
-            expect(response_body['status']).to eq('approved')
+          it 'returns error' do
+            expect(response_body['errors']).to eq([{ "parent_transaction" => ["Parent transaction should have status approved or captured"] }])
           end
         end
 
-        context 'when transaction amount is more than authorized' do
+        context 'amount is less than to be captured' do
           let(:parent_transaction_amount) { 9.99 }
 
           it 'returns error' do
-            post api_transactions_url, params: { transaction: valid_attributes }, headers: auth_header
-
             expect(response_body['errors']).to eq([{ 'base' => ["Captured amount is more than authorized amount"] }])
           end
         end
       end
+    end
 
-      context 'when creating Refund transaction' do
-        let(:parent_transaction_id) { create(:capture_transaction, amount: parent_transaction_amount, status: status).id }
-        let(:transaction_type) { 'refund' }
-        let(:parent_transaction_amount) { 99.99 }
-        let(:status) {'approved'}
+    context 'when creating Refund transaction' do
+      let(:transaction_type) { 'refund' }
+      let(:parent_transaction_type) { :capture_transaction }
 
-        it 'creates transaction with status approved' do
+      it "changes state of parent transaction to captured" do
+        expect {
           post api_transactions_url, params: { transaction: valid_attributes }, headers: auth_header
+        }.to change { parent_transaction.reload.status }.from('approved').to('refunded')
+      end
 
-          expect(response_body['status']).to eq('approved')
+      context 'when parent Capture transaction' do
+        before do
+          post api_transactions_url, params: { transaction: valid_attributes }, headers: auth_header
         end
 
-        context 'when Capture transaction has status error' do
-          let(:status) {'error'}
+        context 'is approved' do
+          let(:parent_transaction_status) { 'approved' }
 
-          it 'returns error' do
-            post api_transactions_url, params: { transaction: valid_attributes }, headers: auth_header
-
-            expect(response_body['errors']).to eq([{ "parent_transaction" => ["Parent transaction should have status approved or refunded"] }])
-          end
-        end
-
-        context 'when Capture transaction is refunded' do
-          let(:status) {'refunded'}
-
-          it 'creates transaction with status approved' do
-            post api_transactions_url, params: { transaction: valid_attributes }, headers: auth_header
-
+          it 'creates a transaction with status approved' do
+            expect(response).to have_http_status(:created)
             expect(response_body['status']).to eq('approved')
           end
         end
 
-        context 'when refund transaction amount is more than captured amount' do
+        context 'is refunded' do
+          let(:parent_transaction_status) { 'refunded' }
+
+          it 'creates transaction with status approved' do
+            expect(response).to have_http_status(:created)
+            expect(response_body['status']).to eq('approved')
+          end
+        end
+
+        context 'has status error' do
+          let(:parent_transaction_status) { 'error' }
+
+          it 'returns error' do
+            expect(response_body['errors']).to eq([{ "parent_transaction" => ["Parent transaction should have status approved or refunded"] }])
+          end
+        end
+
+        context 'amount is less than to be refunded' do
           let(:parent_transaction_amount) { 9.99 }
 
           it 'returns error' do
-            post api_transactions_url, params: { transaction: valid_attributes }, headers: auth_header
-
             expect(response_body['errors']).to eq([{ 'base' => ["Refunded amount is more than captured amount"] }])
           end
         end
       end
+    end
 
-      context 'when creating Void transaction' do
-        let(:parent_transaction_id) { create(:authorize_transaction, status: status).id }
-        let(:transaction_type) { 'void' }
-        let(:status) {'approved'}
+    context 'when creating Void transaction' do
+      let(:amount) { nil }
+      let(:transaction_type) { 'void' }
+      let(:parent_transaction_type) { :authorize_transaction }
+      let(:parent_transaction_status) { 'approved' }
 
-        it 'creates transaction with status approved' do
+      context 'when parent Authorize transaction' do
+        before do
           post api_transactions_url, params: { transaction: valid_attributes }, headers: auth_header
-
-          expect(response).to have_http_status(:created)
         end
 
-        context 'when Authorize transaction has status error' do
-          let(:status) {'error'}
+        context 'is approved' do
+          let(:parent_transaction_status) { 'approved' }
+
+          it 'creates a transaction with status approved' do
+            expect(response).to have_http_status(:created)
+            expect(response_body['status']).to eq('approved')
+          end
+        end
+
+        context 'has status error' do
+          let(:parent_transaction_status) { 'error' }
 
           it 'returns error' do
-            post api_transactions_url, params: { transaction: valid_attributes }, headers: auth_header
-
             expect(response_body['errors']).to eq([{ "parent_transaction" => ["Parent transaction should have status approved"] }])
           end
         end

@@ -5,12 +5,17 @@ class TransactionProcessor::Refund < TransactionProcessor::Base
     @transaction = Transaction::Refund.create(params)
     validate
 
+    # The status of the transaction must be error in case of validation
+    # error, otherwise approved
     if errors?
       transaction.decline
     else
       transaction.approve
+      # Transitions the Capture transaction to status refunded
       transaction.parent_transaction.refund
+      transaction.parent_transaction.save
     end
+    transaction.save
   end
 
   private
